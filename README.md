@@ -5,7 +5,7 @@ The easyparse module is designed to make parsing [context-free grammars](https:/
 Grammars are defined in a reasonably natural syntax by using overloaded operator.
 New functions can be easily defined to allow succinct and readable parsing of complicated grammars.
 
-This module is still in alpha and may change substantially in the near future. It currently only works with Python 2.7, but Python 3.x is in the works.
+This module is still in alpha and may change substantially in the near future. It has been testing in both Python 2.7.6 and Python 3.4.3.
 
 ## Installing
 
