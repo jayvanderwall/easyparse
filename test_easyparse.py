@@ -4,7 +4,12 @@ import re
 import pdb
 import operator
 import cProfile
-import StringIO
+try:
+    # Python 2
+    from StringIO import StringIO
+except ImportError:
+    # Python 3
+    from io import StringIO
 
 import easyparse
 
@@ -186,7 +191,7 @@ class TestPrintBacktrace(unittest.TestCase):
         self.assertEqual(exp_backtrace_string, backtrace_string)
 
     def _print_backtrace_to_string(self, backtrace):
-        s = StringIO.StringIO()
+        s = StringIO()
         easyparse.print_backtrace(backtrace, fout=s)
         ret = s.getvalue()
         s.close()
@@ -658,7 +663,7 @@ class TestBufferedIterator(unittest.TestCase):
         values = [1,2,3,4,5]
         itr = easyparse.BufferedIterator(values)
         itr.checkpoint()
-        self.assertEqual(values[0], itr.next())
+        self.assertEqual(values[0], next(itr))
         itr.rewind()
         self.assertEqual([x for x in itr], values)
 
@@ -690,11 +695,11 @@ class TestBufferedIterator(unittest.TestCase):
         values = [1,2,3]
         itr = easyparse.BufferedIterator(values)
         itr.checkpoint()
-        itr.next()
+        next(itr)
         itr.checkpoint()
-        itr.next()
+        next(itr)
         itr.commit()
-        self.assertEqual(3, itr.next())
+        self.assertEqual(3, next(itr))
         itr.rewind()
         self.assertEqual([1, 2, 3], [x for x in itr])
 

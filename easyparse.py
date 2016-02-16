@@ -334,7 +334,7 @@ class EofRule(RuleBase):
         buffered_iterator.checkpoint()
         try:
             while True:
-                next_char = buffered_iterator.next()
+                next_char = next(buffered_iterator)
                 if not (ignore_whitespace and next_char.isspace()):
                     break
             buffered_iterator.commit()
@@ -355,6 +355,11 @@ class BufferedIterator(object):
         return self
 
     def next(self):
+        # Python 2 iterator function
+        return self.__next__()
+
+    def __next__(self):
+        # Python 3 iterator function
         item = self._get_next_item()
         self._store_item_in_history(item)
         return item
@@ -387,7 +392,7 @@ class BufferedIterator(object):
 
     def discard(self, count):
         for _ in range(count):
-            self.next()
+            next(self)
 
 ##
 # Functions and classes for human-readable backtrace printing.
