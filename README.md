@@ -190,4 +190,4 @@ ok, result = g.indexed_identifier.parse('foo[1]')
 # result == 'foo[0]'
 ```
 
-Note that we had to define the function first, otherwise the Python interpreted doesn't know about it. We also used `''.join` to concatenate a list of strings. This is a standard Python idiom.
+Note that we had to define the function first, otherwise the Python interpreter doesn't know about it. We also used `''.join` to concatenate a list of strings. This is a standard Python idiom.
