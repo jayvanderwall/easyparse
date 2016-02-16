@@ -1,3 +1,4 @@
+# Copyright under the ISC license. See LICENSE for full text.
 import re
 import sys
 
