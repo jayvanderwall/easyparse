@@ -34,7 +34,7 @@ ok, result = hello_grammar.start.parse(sys.stdin.read())
 if ok:
   print 'You said {} to {}!'.format(result[0], result[1])
 else:
-  print 'Your sentence was unrecognized by the grammar, here's what went wrong:'
+  print "Your sentence was unrecognized by the grammar, here's what went wrong:"
   ep.print_backtrace(result)
 ```
 
@@ -44,19 +44,19 @@ Although not strictly necessary, it is convenient to place all rules in a gramma
 This allows us to refer to rules that we have not yet defined. By doing so we can create grammars in a natural top-down fashion.
 The grammar object also gives names to all the rules which will show up in a backtrace if the parsing fails.
 
-The start rule comprises three rules with symbols connecting them. Between hello and separator there is a '^' and between separator and object there is a '+'. 
-For many grammars, we want to ignore whitespace between rules. The plus sign does this. Sometimes we do not. It would look weird to have a space between "Hello" and ",", so we disallow the whitespace using the '^' operator.
+The start rule comprises three rules with symbols connecting them. Between hello and separator there is a `^` and between separator and object there is a `+`. 
+For many grammars, we want to ignore whitespace between rules. The plus sign does this. Sometimes we do not. It would look weird to have a space between "Hello" and ",", so we disallow the whitespace using the `^` operator.
 
 The hello rule consists entirely of a rule to parse the string "Hello".
 
 The separator rule parses a single comma, then ignores it. This affects only the output of the parser, not how the input is parsed. We'll talk about the output later.
 
-The object rule uses a regular expression by using the "re" keyword argument. The regular expressions are parsed with python's "re" module.
+The object rule uses a regular expression by using the `re` keyword argument. The regular expressions are parsed with python's `re` module.
 
 Finally we have some code to read everything from the user, run it through the parser, and get the result. 
 Every parse rule has a parse method. There is nothing special about the start rule.
 
-The parse method returns two values: True or False indicating success or failure, and either the parse results on success, or a backtrace on failiure.
+The parse method returns two values: `True` or `False` indicating success or failure, and either the parse results on success, or a backtrace on failiure.
 We'll talk about the formatting of the results later, but unless you do some extra processing, they will simply be a list of all matches that you do not ignore.
 The backtrace returned in case of failure can be inspected directly or printed using the 'print_backtrace' function provided.
 
@@ -104,6 +104,10 @@ ok, result = rule.parse('3.14')
 ```
 
 It is a good idea to use Python's raw strings (prefix with `r`) when using regular expressions.
+
+### EOF
+
+A special rule is necessary to match the end of input, since it is technically not a character. This is called `eof` in the easyparse module.
 
 ### Conjunctions
 
@@ -191,3 +195,56 @@ ok, result = g.indexed_identifier.parse('foo[1]')
 ```
 
 Note that we had to define the function first, otherwise the Python interpreter doesn't know about it. We also used `''.join` to concatenate a list of strings. This is a standard Python idiom.
+
+## Derived Parse Rules
+
+With a simple pattern rule, conjunction, and disjunction, any grammar can be built. However, to make life easier, several convenience functions are defined. These might be known as higher-order parse rules if you're into that. They are parse rules that take other parse rules and produce parse rules. They're easier than that sounds.
+
+### null
+
+This parse rule always succeeds and consumes no input. The most common
+use is as a fallback alternative when you want to match one of several
+parse rules or none of them.
+
+```python
+rule = ep.parse('a') | ep.parse('b') | ep.null
+ok, result = rule.parse('q')
+# ok == True
+# ep.is_ignored(result) == True
+```
+
+The `optional` rule often can replace use of the `null` rule.
+
+### optional
+
+This function takes a single argument and returns a rule that either
+matches the rule or doesn't. `optional(r)` is equivalent to `r |
+null`.
+
+```python
+rule = ep.optional(ep.parse('a')) + ep.parse('b')
+ok, result = rule.parse('ab')
+# ok == True
+# result == ['a', 'b']
+ok, result = rule.parse('b')
+# ok == True
+# result == ['a', 'b']
+```
+
+### many
+
+Sometimes called the Kleene star operator, this creates a parse rule
+that matches another parse rule repeated zero or more times. Using the
+keyword ignore_whitespace you can decide whether whitespace is allowed
+between the repetitions of the rule. The default is to disallow
+whitespace. The rule `many(r)` is mostly equivalent to `optional(r ^
+many(r))`, but the function is not recursive, allowing it to match
+arbitrarily long strings. The return value is a list of the outputs of
+the rule that matched.
+
+```python
+rule = ep.many(ep.parse(re='[abc]+'), ignore_whitespace=True)
+ok, result = rule.parse('abcabc abc')
+# ok == True
+# result == ['abcabc', 'abc']
+```
