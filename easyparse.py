@@ -1,6 +1,7 @@
 # Copyright under the ISC license. See LICENSE for full text.
 import re
 import sys
+import collections
 
 VERBOSE = False
 
@@ -73,7 +74,9 @@ class VirtualRule(RuleBase):
         return self.grammar._real_rules[self.name]
 
     def _name_last_backtrace(self, backtrace):
-        backtrace = (self.get_rule_name(),) + backtrace[1:]
+        backtrace = Backtrace(self.get_rule_name(),
+                              backtrace.rule_type_name,
+                              backtrace.data)
         return backtrace
 
 class PatternRule(RuleBase):
@@ -97,7 +100,7 @@ class PatternRule(RuleBase):
         else:
             self.display('Failed')
             ok = False
-            output = ('', self.get_rule_type_name(), self.pattern)
+            output = Backtrace('', self.get_rule_type_name(), self.pattern)
         return ok, output
 
     def get_rule_type_name(self):
@@ -138,8 +141,8 @@ class RegularExpressionRule(RuleBase):
         line = self._read_until_end_of_line(buffered_iterator)
         match = self.pattern.match(line)
         ok = False
-        output = ('', self.get_rule_type_name(),
-                  self.regular_expression_text)
+        output = Backtrace('', self.get_rule_type_name(),
+                           self.regular_expression_text)
         if match:
             match_text = line[match.start():match.end()]
             buffered_iterator.rewind()
@@ -221,8 +224,8 @@ class ConjunctionRule(RuleBase):
                                      ignore_whitespace=ignore_whitespace)
             if not ok:
                 self.display('Failed on rule {}'.format(idx))
-                return ok, ('', self.get_rule_type_name(),
-                            (successes, result))
+                return ok, Backtrace('', self.get_rule_type_name(),
+                                     (successes, result))
             results.extend_or_append(result)
             successes.append((rule.get_rule_name(),
                               rule.get_rule_type_name(),
@@ -276,15 +279,15 @@ class DisjunctionRule(RuleBase):
                 return True, result
             else:
                 if result is None:
-                    backtraces.append((rule.get_rule_name(),
-                                       rule.get_rule_type_name(),
-                                       None))
+                    backtraces.append(Backtrace(rule.get_rule_name(),
+                                                rule.get_rule_type_name(),
+                                                None))
                 else:
                     backtraces.append(result)
                 buffered_iterator.rewind()
         self.display('Failed')
         assert len(backtraces) == len(self.rules)
-        return False, ('', self.get_rule_type_name(), backtraces)
+        return False, Backtrace('', self.get_rule_type_name(), backtraces)
 
     def get_rule_type_name(self):
         return 'Disjunction'
@@ -314,7 +317,7 @@ class TransformationRule(RuleBase):
             try:
                 transformed_result = self.transformation_function(result)
             except Exception as ex:
-                return False, ('', 'Transformation', result)
+                return False, Backtrace('', 'Transformation', result)
             return ok, transformed_result
         else:
             return ok, result
@@ -338,12 +341,15 @@ class EofRule(RuleBase):
                 if not (ignore_whitespace and next_char.isspace()):
                     break
             buffered_iterator.commit()
-            return False, None
+            return False, Backtrace('', self.get_rule_type_name(), None)
         except StopIteration:
             return True, Ignored
 
     def get_rule_type_name(self):
         return 'Eof'
+
+Backtrace = collections.namedtuple('Backtrace',
+                                   ['rule_name', 'rule_type_name', 'data'])
 
 class BufferedIterator(object):
     def __init__(self, iterator):
