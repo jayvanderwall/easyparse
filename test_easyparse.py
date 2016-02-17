@@ -92,6 +92,8 @@ class FunctionalTest(unittest.TestCase):
     def test_method_call_syntax(self):
         grammar = self._make_method_call_grammar()
         ok, result = grammar.start.parse('foo.bar(a, b)')
+        if not ok:
+            easyparse.print_backtrace(result)
         self.assertTrue(ok)
         self.assertEqual(['foo', 'bar', ('a', 'b')], result)
         self.assertFalse(grammar.start.parse('foo. bar(a)')[0])
@@ -113,7 +115,7 @@ class FunctionalTest(unittest.TestCase):
                                          ignore_whitespace=True) + \
                           easyparse.ignore(')') > tuple
         grammar.arg = grammar.identifier
-        grammar.identifier = easyparse.parse(re=r'([a-zA-Z_]+)')
+        grammar.identifier = easyparse.parse(re=r'[a-zA-Z_]+')
         return grammar
 
 class TestBacktrace(unittest.TestCase):

@@ -137,38 +137,46 @@ class RegularExpressionRule(RuleBase):
                ignore_whitespace=False):
         self.display('Testing regex {}'.format(
             self.regular_expression_text))
+        match_text = self._match_pattern(buffered_iterator, ignore_whitespace)
+        if match_text is not None:
+            ok = True
+            if self.ignore_output:
+                output = Ignored
+            else:
+                output = match_text
+        else:
+            ok = False
+            output = Backtrace('', self.get_rule_type_name(),
+                               self.regular_expression_text)
+        self.display('Succeeded' if ok else 'Failed')
+        return ok, output
+
+    def _match_pattern(self, buffered_iterator, ignore_whitespace):
         buffered_iterator.checkpoint()
-        line = self._read_until_end_of_line(buffered_iterator)
+        consumed_count = None
+        try:
+            line = self._read_until_end_of_line(buffered_iterator)
+            match_text, consumed_count = \
+                self._get_matching_text_and_length_or_none(
+                    line, ignore_whitespace)
+        finally:
+            buffered_iterator.commit(consumed_count)
+        return match_text
+
+    def _get_matching_text_and_length_or_none(self, line, ignore_whitespace):
         match = self.pattern.match(line)
-        ok = False
-        output = Backtrace('', self.get_rule_type_name(),
-                           self.regular_expression_text)
+        match_text = None
+        consumed_count = None
         if match:
             match_text = line[match.start():match.end()]
-            buffered_iterator.rewind()
-            buffered_iterator.discard(len(match_text))
-            ok = True
-            output = match_text
+            consumed_count = len(match_text)
         elif ignore_whitespace:
             match = self.pattern_ignoring_whitespace.match(line)
             if match:
-                all_match_text = line[match.start():match.end()]
-                buffered_iterator.rewind()
-                buffered_iterator.discard(len(all_match_text))
-                ok = True
-                output = all_match_text[match.end(1):match.end(0)]
-            else:
-                buffered_iterator.commit()
-        if ok and self.ignore_output:
-            output = Ignored
-        if not ok:
-            self.display('Failed')
-        else:
-            self.display('Succeeded')
-        return ok, output
-
-    def get_rule_type_name(self):
-        return 'RegularExpression'
+                match_text_with_ws = line[match.start():match.end()]
+                consumed_count = len(match_text_with_ws)
+                match_text = match_text_with_ws[match.end(1):match.end(0)]
+        return match_text, consumed_count
 
     def _read_until_end_of_line(self, buffered_iterator):
         chars = []
@@ -181,6 +189,9 @@ class RegularExpressionRule(RuleBase):
         except StopIteration:
             pass
         return ''.join(chars)
+
+    def get_rule_type_name(self):
+        return 'RegularExpression'
 
 class ConjunctionRule(RuleBase):
 
@@ -387,10 +398,13 @@ class BufferedIterator(object):
         self.future_buffer = \
             self.history_buffers.pop() + self.future_buffer
 
-    def commit(self):
+    def commit(self, length=None):
+        top = self.history_buffers.pop()
+        top_history = top[:length]
+        top_future = top[len(top_history):]
+        self.future_buffer = top_future + self.future_buffer
         try:
-            top = self.history_buffers.pop()
-            self.history_buffers[-1].extend(top)
+            self.history_buffers[-1].extend(top_history)
         except IndexError:
             pass
 
