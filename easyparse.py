@@ -366,9 +366,7 @@ class BufferedIterator(object):
 
     def _get_next_item(self):
         if self.future_buffer:
-            ret = self.future_buffer[0]
-            self.future_buffer = self.future_buffer[1:]
-            return ret
+            return self.future_buffer.pop(0)
         else:
             return next(self.iterator)
 
@@ -528,41 +526,54 @@ class optional(RuleBase):
 class many(RuleBase):
     """A rule that matches many occurrences of a pattern. Equivalent to
     optional(rule + many(rule)), but this version uses iteration
-    instead of recursion. Ignores whitespace between patterns if it is
-    ignored initially.
+    instead of recursion. Whitespace between rules is determined by a
+    keyword when creating the rule (default not ignored). Whitespace
+    before the rule operates as normal.
     """
-    def __init__(self, rule):
+    def __init__(self, rule, ignore_whitespace=False):
         self.rule = rule
+        self.ignore_whitespace = ignore_whitespace
     def _parse(self, buffered_iterator, ignore_whitespace=False):
         results = ConjunctionList()
+        ignore_this_round = ignore_whitespace
         while True:
             _, result = optional(self.rule)._parse(buffered_iterator,
-                ignore_whitespace=ignore_whitespace)
+                ignore_whitespace=ignore_this_round)
             if is_ignored(result):
                 return True, results
             results.extend_or_append(result)
+            ignore_this_round = self.ignore_whitespace
     def get_rule_type_name(self):
         return 'many'
 
 @parse_rule
-def join(rule, joiner):
+def join(rule, joiner, ignore_whitespace=False):
     """Act like string.join by combining a rule with a joiner rule in
     between any instances of that rule."""
-    return optional(rule + many(joiner + rule))
+    if ignore_whitespace:
+        return optional(rule + many(joiner + rule))
+    else:
+        return optional(rule ^ many(joiner ^ rule))
 
 @parse_rule
-def at_most_n(rule, count):
+def at_most_n(rule, count, ignore_whitespace=False):
     """Parse at most some number of instances of a rule."""
     if count == 0:
         return null
-    return optional(rule) + at_most_n(rule, count - 1)
+    if ignore_whitespace:
+        return optional(rule) + at_most_n(rule, count - 1)
+    else:
+        return optional(rule) ^ at_most_n(rule, count - 1)
 
 @parse_rule
-def at_least_n(rule, count):
+def at_least_n(rule, count, ignore_whitespace=False):
     """Parse at least some number of instances of a rule."""
     if count == 0:
         return many(rule)
-    return rule + at_least_n(rule, count - 1)
+    if ignore_whitespace:
+        return rule + at_least_n(rule, count - 1)
+    else:
+        return rule ^ at_least_n(rule, count - 1)
 
 # Make the ignored symbol actually be an empty conjunction list. This
 # allows us to deal with it in conjunctions without special code. Note

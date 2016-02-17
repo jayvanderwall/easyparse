@@ -109,7 +109,8 @@ class FunctionalTest(unittest.TestCase):
         grammar.method_name = grammar.identifier
         grammar.arglist = easyparse.ignore('(') + \
                           easyparse.join(grammar.arg,
-                                         easyparse.ignore(',')) + \
+                                         easyparse.ignore(','),
+                                         ignore_whitespace=True) + \
                           easyparse.ignore(')') > tuple
         grammar.arg = grammar.identifier
         grammar.identifier = easyparse.parse(re=r'([a-zA-Z_]+)')
