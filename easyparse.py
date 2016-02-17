@@ -583,9 +583,8 @@ def at_least_n(rule, count, ignore_whitespace=False):
 
 # Make the ignored symbol actually be an empty conjunction list. This
 # allows us to deal with it in conjunctions without special code. Note
-# that this means [] == Ignored will return True, so don't create a
-# case in which it is useful to distinguish between Ignored and an
-# empty list.
+# that this means [] == Ignored will return True, so use the
+# is_ignored function for this check.
 Ignored = ConjunctionList()
 
 def is_ignored(value):
