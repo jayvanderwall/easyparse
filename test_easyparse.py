@@ -110,9 +110,8 @@ class FunctionalTest(unittest.TestCase):
         grammar.instance_name = grammar.identifier
         grammar.method_name = grammar.identifier
         grammar.arglist = easyparse.ignore('(') + \
-                          easyparse.join(grammar.arg,
-                                         easyparse.ignore(','),
-                                         allow_whitespace=True) + \
+                          easyparse.join_ws(grammar.arg,
+                                            easyparse.ignore(',')) + \
                           easyparse.ignore(')') > tuple
         grammar.arg = grammar.identifier
         grammar.identifier = easyparse.parse(re=r'[a-zA-Z_]+')
@@ -597,7 +596,17 @@ class TestHelperFunctions(unittest.TestCase):
         rule = easyparse.many(easyparse.PatternRule('a'))
         self.assertEqual((True, easyparse.Ignored), rule.parse(''))
         for i in range(1,5):
+            self.assertEqual((True, ['a']), rule.parse('a ' * i))
+        for i in range(1,5):
             self.assertEqual((True, ['a'] * i), rule.parse('a' * i))
+
+    def test_many_allow_whitespace(self):
+        rule = easyparse.many_ws(easyparse.PatternRule('a'))
+        self.assertEqual((True, easyparse.Ignored), rule.parse(''))
+        for i in range(1,5):
+            self.assertEqual((True, ['a'] * i), rule.parse('a' * i))
+        for i in range(1,5):
+            self.assertEqual((True, ['a'] * i), rule.parse('a ' * i))
 
     def test_join(self):
         rule = easyparse.join(easyparse.PatternRule('a'),
@@ -608,20 +617,35 @@ class TestHelperFunctions(unittest.TestCase):
         self.assertEqual((True, ['a', 'a']), rule.parse('aqa'))
         self.assertEqual((True, ['a']), rule.parse('aa'))
 
-    def test_at_most_n(self):
-        rule = easyparse.at_most_n(easyparse.PatternRule('ab'), 2) + easyparse.PatternRule('c')
+    def test_repeat_upper_limit(self):
+        rule = easyparse.repeat(easyparse.PatternRule('ab'), 0, 2) + easyparse.PatternRule('c')
         self.assertEqual((True, ['c']), rule.parse('c'))
         self.assertEqual((True, ['ab','c']), rule.parse('abc'))
         self.assertEqual((True, ['ab','ab','c']), rule.parse('ababc'))
         self.assertEqual(False, rule.parse('abababc')[0])
 
-    def test_at_least_n(self):
-        rule = easyparse.at_least_n(easyparse.PatternRule('ab'), 2) + easyparse.PatternRule('c')
+    def test_repeat_lower_limit(self):
+        rule = easyparse.repeat(easyparse.PatternRule('ab'), 2) + easyparse.PatternRule('c')
         self.assertEqual((True, ['ab', 'ab', 'c']), rule.parse('ababc'))
         self.assertEqual((True, ['ab', 'ab', 'ab', 'c']),
                          rule.parse('abababc'))
         self.assertEqual(False, rule.parse('c')[0])
         self.assertEqual(False, rule.parse('abc')[0])
+
+    def test_repeat_range(self):
+        rule = easyparse.repeat(easyparse.PatternRule('ab'), 1, 2) + easyparse.PatternRule('c')
+        self.assertEqual((True, ['ab', 'c']), rule.parse('abc'))
+        self.assertEqual((True, ['ab', 'ab', 'c']), rule.parse('ababc'))
+        self.assertEqual(False, rule.parse('c')[0])
+        self.assertEqual(False, rule.parse('abababc')[0])
+
+    def test_repeat_range_allow_whitespace(self):
+        rule = easyparse.repeat_ws(easyparse.PatternRule('ab'), 1, 2) + easyparse.PatternRule('c')
+        self.assertEqual((True, ['ab', 'c']), rule.parse('abc'))
+        self.assertEqual((True, ['ab', 'ab', 'c']), rule.parse('ab abc'))
+        self.assertEqual((True, ['ab', 'ab', 'c']), rule.parse('ababc'))
+        self.assertEqual(False, rule.parse('c')[0])
+        self.assertEqual(False, rule.parse('abababc')[0])
 
 class TestRegularExpression(unittest.TestCase):
 

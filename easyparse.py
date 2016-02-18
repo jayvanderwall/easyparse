@@ -2,6 +2,7 @@
 import re
 import sys
 import collections
+import operator
 
 VERBOSE = False
 
@@ -545,9 +546,9 @@ class optional(RuleBase):
 
 class many(RuleBase):
     """A rule that matches many occurrences of a pattern. Equivalent to
-    optional(rule + many(rule)), but this version uses iteration
+    optional(rule ^ many(rule)), but this version uses iteration
     instead of recursion. Whitespace between rules is determined by a
-    keyword when creating the rule (default not ignored). Whitespace
+    keyword when creating the rule (default not allowed). Whitespace
     before the rule operates as normal.
     """
     def __init__(self, rule, allow_whitespace=False):
@@ -555,45 +556,60 @@ class many(RuleBase):
         self.allow_whitespace = allow_whitespace
     def _parse(self, buffered_iterator, allow_whitespace=False):
         results = ConjunctionList()
-        ignore_this_round = allow_whitespace
+        allow_this_round = allow_whitespace
         while True:
             _, result = optional(self.rule)._parse(buffered_iterator,
-                allow_whitespace=ignore_this_round)
+                allow_whitespace=allow_this_round)
             if is_ignored(result):
                 return True, results
             results.extend_or_append(result)
-            ignore_this_round = self.allow_whitespace
+            allow_this_round = self.allow_whitespace
     def get_rule_type_name(self):
         return 'many'
 
+def many_ws(rule):
+    """The same as the many rule with the allow_whitespace keyword set to
+    True.
+    """
+    return many(rule, allow_whitespace=True)
+
 @parse_rule
-def join(rule, joiner, allow_whitespace=False):
+def join(rule, joiner):
     """Act like string.join by combining a rule with a joiner rule in
-    between any instances of that rule."""
-    if allow_whitespace:
-        return optional(rule + many(joiner + rule))
-    else:
-        return optional(rule ^ many(joiner ^ rule))
+    between any instances of that rule. Does not allow whitespace."""
+    return optional(rule ^ many(joiner ^ rule))
 
 @parse_rule
-def at_most_n(rule, count, allow_whitespace=False):
-    """Parse at most some number of instances of a rule."""
-    if count == 0:
+def join_ws(rule, joiner):
+    """Same as the join rule but allows whitespace."""
+    return optional(rule + many(joiner + rule))
+
+@parse_rule
+def repeat(rule, from_count, to_count=None, allow_whitespace=False):
+    """Allow between from_count and to_count repetitions of a rule.
+
+    If to_count is not given, then allow as many repetitions as can be
+    parsed.
+    """
+
+    if to_count == 0:
         return null
-    if allow_whitespace:
-        return optional(rule) + at_most_n(rule, count - 1)
-    else:
-        return optional(rule) ^ at_most_n(rule, count - 1)
 
-@parse_rule
-def at_least_n(rule, count, allow_whitespace=False):
-    """Parse at least some number of instances of a rule."""
-    if count == 0:
-        return many(rule)
-    if allow_whitespace:
-        return rule + at_least_n(rule, count - 1)
-    else:
-        return rule ^ at_least_n(rule, count - 1)
+    if from_count == 0 and to_count is None:
+        return many(rule, allow_whitespace=allow_whitespace)
+
+    op = operator.__add__ if allow_whitespace else operator.__xor__
+    next_to_count = to_count - 1 if to_count is not None else None
+    next_from_count = from_count - 1 if from_count > 0 else 0
+
+    first_part = optional(rule) if from_count == 0 else rule
+
+    return op(first_part, repeat(rule, next_from_count, next_to_count,
+                                 allow_whitespace))
+
+def repeat_ws(rule, from_count, to_count=None):
+    """Same as the repeat rule with allow_whitespace set to True."""
+    return repeat(rule, from_count, to_count, allow_whitespace=True)
 
 # Make the ignored symbol actually be an empty conjunction list. This
 # allows us to deal with it in conjunctions without special code. Note
