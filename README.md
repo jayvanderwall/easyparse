@@ -2,7 +2,7 @@
 A simple python parsing library.
 
 The easyparse module is designed to make parsing [context-free grammars](https://en.wikipedia.org/wiki/Context-free_grammar) as easy as possible. In a nutshell, this means we can recognize text that has recursive properties (like HTML) that regular expressions cannot. There are things that we cannot parse, however, but most parsers out there parse context free grammars, so this isn't a big deal in practice.
-Grammars are defined in a reasonably natural syntax by using overloaded operator.
+Grammars are defined in a reasonably natural syntax by using overloaded operators.
 New functions can be easily defined to allow succinct and readable parsing of complicated grammars.
 
 This module is still in alpha and may change substantially in the near future. It has been testing in both Python 2.7.6 and Python 3.4.3.
@@ -196,9 +196,9 @@ ok, result = g.indexed_identifier.parse('foo[1]')
 
 Note that we had to define the function first, otherwise the Python interpreter doesn't know about it. We also used `''.join` to concatenate a list of strings. This is a standard Python idiom.
 
-## Derived Parse Rules
+## Convenience Rules
 
-With a simple pattern rule, conjunction, and disjunction, any grammar can be built. However, to make life easier, several convenience functions are defined. These might be known as higher-order parse rules if you're into that. They are parse rules that take other parse rules and produce parse rules. They're easier than that sounds.
+With a simple pattern rule, conjunction, and disjunction, any grammar can be built. However, to make life easier, several convenience functions are defined. Some of these are rules, while others are better thought of as functions operating on rules. These might be known as higher-order parse rules if you're into that. They're easier than that sounds.
 
 ### null
 
@@ -248,3 +248,80 @@ ok, result = rule.parse('abcabc abc')
 # ok == True
 # result == ['abcabc', 'abc']
 ```
+
+### repeat
+
+Where the many operator matches anywhere from zero to infinity of a
+patten, sometimes we want tighter bounds. The repeat function allows
+us to use a rule, a minimum bound, and an optional maximum bound and
+get a rule that matches between those bounds. A minimum bound of 0
+with no maximum given is the same as `many`.
+
+## Defining your own rules
+
+There are many ways to define your own parse rules. We've already seen
+how to make rules that are part of a grammar or stand by
+themselves. But we can also define higher-order rules like
+`optional`. There are three ways to do this:
+
+1. Create a function that takes in a rule and spits out another
+   rule. This may not use recursion.
+2. Create a function with the `parse_rule` decorator. This may use
+   recursion.
+3. Create a class that derives from RuleBase and overrides the
+   `_parse` and `get_rule_type_name` methods.
+
+This simplest is option one. The `optional` rule could be implemented
+using this method as follows:
+
+```python
+def optional(rule):
+  return rule | null
+```
+
+If, however, a rule function must call itself, this may not work. The entire rule will be fully expanded when it is created, and this may create an infinite loop. The following naive implementation of `many` will not work, for instance.
+
+```python
+# BAD
+def many(rule):
+  return optional(rule) + many(rule)
+```
+
+The reason is a little subtle, and it's ok if you quite see why. If
+you always use the `parse_rule` decorator, you will never get into
+trouble. It also helps mark your intention to make this a function
+usable in parse rules.
+
+```python
+# GOOD
+@parse_rule
+def many(rule):
+  return optional(rule + many(rule))
+```
+
+You'll notice the only difference between the bad and good examples is
+the use of the decorator. The decorator in effect delays running the
+function until you actually need to parse something with it. So even
+though the many rule is recursive, once a rule fails to parse it will
+stop recursing.
+
+If you look at the code for easyparse, you will see that `many` is not
+in fact implemented with this decorator. The reason is that each
+recursive call causes Python to make another function call. Eventually
+Python reaches a limit of function calls that have not returned, and
+quits. To avoid this, we have to create a custom class. This is
+generally not necessary except when using the above options is too
+slow or consumes too many resources.
+
+When creating a custom class, you must derive it from the
+`RuleBase`. Then you must override the `_parse` (note the underscore)
+method taking a buffered iterator and the keyword
+allow_whitespace. This method must return two arguments: a boolean
+indicating success and the parsed data on success or a traceback on
+failure. Finally, it is recommended to override the
+`get_rule_type_name` method and return a string uniquely representing
+this rule (likely the name of the class). This is used in creating
+backtraces.
+
+See the code in easyparse for an example. Creating a custom class is a
+bit more involved than this README should cover.
