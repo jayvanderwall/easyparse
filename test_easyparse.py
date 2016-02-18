@@ -112,7 +112,7 @@ class FunctionalTest(unittest.TestCase):
         grammar.arglist = easyparse.ignore('(') + \
                           easyparse.join(grammar.arg,
                                          easyparse.ignore(','),
-                                         ignore_whitespace=True) + \
+                                         allow_whitespace=True) + \
                           easyparse.ignore(')') > tuple
         grammar.arg = grammar.identifier
         grammar.identifier = easyparse.parse(re=r'[a-zA-Z_]+')
@@ -387,11 +387,11 @@ class TestParseRule(unittest.TestCase):
 
     def test_match_ignores_preceding_whitespace(self):
         rule = easyparse.PatternRule('0')
-        self.assertEqual((True, '0'), rule.parse(' 0', ignore_whitespace=True))
+        self.assertEqual((True, '0'), rule.parse(' 0', allow_whitespace=True))
 
     def test_match_ignores_preceding_whitespace_but_matches_pattern_space(self):
         rule = easyparse.PatternRule(' ')
-        self.assertEqual((True, ' '), rule.parse('\t ', ignore_whitespace=True))
+        self.assertEqual((True, ' '), rule.parse('\t ', allow_whitespace=True))
 
     def test_whitespace_matches_itself(self):
         rule = easyparse.PatternRule('\t')
@@ -410,7 +410,7 @@ class TestParseRule(unittest.TestCase):
     def test_match_with_same_whitespace_preceding(self):
         rule = easyparse.PatternRule(' 0')
         self.assertEqual((True, ' 0'), rule.parse('  0',
-                                                  ignore_whitespace=True))
+                                                  allow_whitespace=True))
 
     def test_match_wrong_rule_with_whitespace(self):
         rule = easyparse.PatternRule('0')
@@ -652,7 +652,7 @@ class TestRegularExpression(unittest.TestCase):
     def test_re_match_with_same_whitespace_preceding(self):
         rule = easyparse.RegularExpressionRule(r' 0')
         self.assertEqual((True, ' 0'), rule.parse('  0',
-                                                  ignore_whitespace=True))
+                                                  allow_whitespace=True))
 
 class TestBufferedIterator(unittest.TestCase):
 

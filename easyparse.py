@@ -19,10 +19,10 @@ class Grammar(object):
 class RuleBase(object):
 
     def __add__(self, other_rule):
-        return ConjunctionRule(self, other_rule, ignore_whitespace=True)
+        return ConjunctionRule(self, other_rule, allow_whitespace=True)
 
     def __xor__(self, other_rule):
-        return ConjunctionRule(self, other_rule, ignore_whitespace=False)
+        return ConjunctionRule(self, other_rule, allow_whitespace=False)
 
     def __or__(self, other_rule):
         return DisjunctionRule(self, other_rule)
@@ -87,10 +87,10 @@ class PatternRule(RuleBase):
         self.pattern = pattern
 
     def _parse(self, buffered_iterator,
-               ignore_whitespace=False):
+               allow_whitespace=False):
         self.display('Testing pattern {}'.format(self.pattern))
 
-        if self._check_pattern(buffered_iterator, ignore_whitespace):
+        if self._check_pattern(buffered_iterator, allow_whitespace):
             if not self.ignore_output:
                 output = self.pattern
             else:
@@ -106,16 +106,16 @@ class PatternRule(RuleBase):
     def get_rule_type_name(self):
         return 'Pattern'
 
-    def _check_pattern(self, buffered_iterator, ignore_whitespace):
-        can_ignore_whitespace = ignore_whitespace
+    def _check_pattern(self, buffered_iterator, allow_whitespace):
+        can_allow_whitespace = allow_whitespace
         for c in self.pattern:
             try:
                 next_char = next(buffered_iterator)
                 if not next_char.isspace():
-                    can_ignore_whitespace = False
+                    can_allow_whitespace = False
                 while c != next_char:
                     we_can_ignore_this_space = \
-                        next_char.isspace() and can_ignore_whitespace
+                        next_char.isspace() and can_allow_whitespace
                     if not we_can_ignore_this_space:
                         return False
                     else:
@@ -134,10 +134,10 @@ class RegularExpressionRule(RuleBase):
         self.ignore_output = ignore_output
 
     def _parse(self, buffered_iterator,
-               ignore_whitespace=False):
+               allow_whitespace=False):
         self.display('Testing regex {}'.format(
             self.regular_expression_text))
-        match_text = self._match_pattern(buffered_iterator, ignore_whitespace)
+        match_text = self._match_pattern(buffered_iterator, allow_whitespace)
         if match_text is not None:
             ok = True
             if self.ignore_output:
@@ -151,26 +151,26 @@ class RegularExpressionRule(RuleBase):
         self.display('Succeeded' if ok else 'Failed')
         return ok, output
 
-    def _match_pattern(self, buffered_iterator, ignore_whitespace):
+    def _match_pattern(self, buffered_iterator, allow_whitespace):
         buffered_iterator.checkpoint()
         consumed_count = None
         try:
             line = self._read_until_end_of_line(buffered_iterator)
             match_text, consumed_count = \
                 self._get_matching_text_and_length_or_none(
-                    line, ignore_whitespace)
+                    line, allow_whitespace)
         finally:
             buffered_iterator.commit(consumed_count)
         return match_text
 
-    def _get_matching_text_and_length_or_none(self, line, ignore_whitespace):
+    def _get_matching_text_and_length_or_none(self, line, allow_whitespace):
         match = self.pattern.match(line)
         match_text = None
         consumed_count = None
         if match:
             match_text = line[match.start():match.end()]
             consumed_count = len(match_text)
-        elif ignore_whitespace:
+        elif allow_whitespace:
             match = self.pattern_ignoring_whitespace.match(line)
             if match:
                 match_text_with_ws = line[match.start():match.end()]
@@ -195,7 +195,7 @@ class RegularExpressionRule(RuleBase):
 
 class ConjunctionRule(RuleBase):
 
-    def __init__(self, left_rule, right_rule, ignore_whitespace=False):
+    def __init__(self, left_rule, right_rule, allow_whitespace=False):
         """Create a new conjunction.
 
         left_rule -- The first rule which must match.
@@ -203,17 +203,17 @@ class ConjunctionRule(RuleBase):
         right_rule -- The second rule which must match after the
         left_rule has.
 
-        ignore_whitespace -- Ignore whitespace between the left and
+        allow_whitespace -- Ignore whitespace between the left and
         right rule. Preceding whitespace must be handled external to
         this rule.
 
         """
-        whitespace_ignore_list = [True, ignore_whitespace]
+        whitespace_ignore_list = [True, allow_whitespace]
         self.rules, self.whitespace_ignore_list = \
             flatten_conjunction_rules((left_rule, right_rule),
                                       whitespace_ignore_list)
 
-    def _parse(self, buffered_iterator, ignore_whitespace=False):
+    def _parse(self, buffered_iterator, allow_whitespace=False):
         """Parse a conjunction.
 
         On success, return a ConjunctionList of all results.
@@ -226,13 +226,13 @@ class ConjunctionRule(RuleBase):
         results = ConjunctionList()
         successes = []
         whitespace_ignore_list = \
-            [ignore_whitespace] + self.whitespace_ignore_list[1:]
-        for idx, (rule, ignore_whitespace) in enumerate(
+            [allow_whitespace] + self.whitespace_ignore_list[1:]
+        for idx, (rule, allow_whitespace) in enumerate(
                 zip(self.rules, whitespace_ignore_list)):
             self.display('Trying rule {} (ignore_ws={})'.format(
-                idx, ignore_whitespace))
+                idx, allow_whitespace))
             ok, result = rule._parse(buffered_iterator,
-                                     ignore_whitespace=ignore_whitespace)
+                                     allow_whitespace=allow_whitespace)
             if not ok:
                 self.display('Failed on rule {}'.format(idx))
                 return ok, Backtrace('', self.get_rule_type_name(),
@@ -276,13 +276,13 @@ class DisjunctionRule(RuleBase):
         super(DisjunctionRule, self).__init__()
         self.rules = flatten_disjunction_rules(rules)
 
-    def _parse(self, buffered_iterator, ignore_whitespace=False):
+    def _parse(self, buffered_iterator, allow_whitespace=False):
         self.display('Testing disjunction')
         backtraces = []
         for idx, rule in enumerate(self.rules):
             buffered_iterator.checkpoint()
             ok, result = rule._parse(buffered_iterator,
-                                     ignore_whitespace=ignore_whitespace)
+                                     allow_whitespace=allow_whitespace)
             if ok:
                 self.display('Succeded on rule {}: {}'.format(
                     idx, result))
@@ -320,9 +320,9 @@ class TransformationRule(RuleBase):
         self.left_rule = left_rule
         self.transformation_function = transformation_function
 
-    def _parse(self, buffered_iterator, ignore_whitespace=False):
+    def _parse(self, buffered_iterator, allow_whitespace=False):
         ok, result = self.left_rule._parse(buffered_iterator,
-            ignore_whitespace=ignore_whitespace)
+            allow_whitespace=allow_whitespace)
         if ok:
             self.display('Transforming result')
             try:
@@ -344,12 +344,12 @@ class TransformationRule(RuleBase):
 
 class EofRule(RuleBase):
     """A rule that matches the end of a buffered iterator."""
-    def _parse(self, buffered_iterator, ignore_whitespace=False):
+    def _parse(self, buffered_iterator, allow_whitespace=False):
         buffered_iterator.checkpoint()
         try:
             while True:
                 next_char = next(buffered_iterator)
-                if not (ignore_whitespace and next_char.isspace()):
+                if not (allow_whitespace and next_char.isspace()):
                     break
             buffered_iterator.commit()
             return False, Backtrace('', self.get_rule_type_name(), None)
@@ -530,10 +530,10 @@ class optional(RuleBase):
         is manualy managing the buffered_iterator.
         """
         self.rule = rule
-    def _parse(self, buffered_iterator, ignore_whitespace=False):
+    def _parse(self, buffered_iterator, allow_whitespace=False):
         buffered_iterator.checkpoint()
         ok, result = self.rule._parse(buffered_iterator,
-                                      ignore_whitespace=ignore_whitespace)
+                                      allow_whitespace=allow_whitespace)
         if ok:
             buffered_iterator.commit()
         else:
@@ -550,47 +550,47 @@ class many(RuleBase):
     keyword when creating the rule (default not ignored). Whitespace
     before the rule operates as normal.
     """
-    def __init__(self, rule, ignore_whitespace=False):
+    def __init__(self, rule, allow_whitespace=False):
         self.rule = rule
-        self.ignore_whitespace = ignore_whitespace
-    def _parse(self, buffered_iterator, ignore_whitespace=False):
+        self.allow_whitespace = allow_whitespace
+    def _parse(self, buffered_iterator, allow_whitespace=False):
         results = ConjunctionList()
-        ignore_this_round = ignore_whitespace
+        ignore_this_round = allow_whitespace
         while True:
             _, result = optional(self.rule)._parse(buffered_iterator,
-                ignore_whitespace=ignore_this_round)
+                allow_whitespace=ignore_this_round)
             if is_ignored(result):
                 return True, results
             results.extend_or_append(result)
-            ignore_this_round = self.ignore_whitespace
+            ignore_this_round = self.allow_whitespace
     def get_rule_type_name(self):
         return 'many'
 
 @parse_rule
-def join(rule, joiner, ignore_whitespace=False):
+def join(rule, joiner, allow_whitespace=False):
     """Act like string.join by combining a rule with a joiner rule in
     between any instances of that rule."""
-    if ignore_whitespace:
+    if allow_whitespace:
         return optional(rule + many(joiner + rule))
     else:
         return optional(rule ^ many(joiner ^ rule))
 
 @parse_rule
-def at_most_n(rule, count, ignore_whitespace=False):
+def at_most_n(rule, count, allow_whitespace=False):
     """Parse at most some number of instances of a rule."""
     if count == 0:
         return null
-    if ignore_whitespace:
+    if allow_whitespace:
         return optional(rule) + at_most_n(rule, count - 1)
     else:
         return optional(rule) ^ at_most_n(rule, count - 1)
 
 @parse_rule
-def at_least_n(rule, count, ignore_whitespace=False):
+def at_least_n(rule, count, allow_whitespace=False):
     """Parse at least some number of instances of a rule."""
     if count == 0:
         return many(rule)
-    if ignore_whitespace:
+    if allow_whitespace:
         return rule + at_least_n(rule, count - 1)
     else:
         return rule ^ at_least_n(rule, count - 1)
